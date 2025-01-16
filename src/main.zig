@@ -14,14 +14,13 @@ pub fn main() !void {
 }
 
 fn execute_bytecode(code: []u8) !void {
-    const page_buffer = try std.posix.mmap(null, code.len, std.posix.PROT.WRITE | std.posix.PROT.READ | std.posix.PROT.EXEC, .{
-        .ANONYMOUS = true,
-        .TYPE = .PRIVATE,
-    }, -1, 0);
+    const protection = std.posix.PROT.WRITE | std.posix.PROT.READ | std.posix.PROT.EXEC;
+    const flags = .{ .ANONYMOUS = true, .TYPE = .PRIVATE };
+    const page_buffer = try std.posix.mmap(null, code.len, protection, flags, -1, 0);
     defer std.posix.munmap(page_buffer);
 
     @memcpy(page_buffer, code);
 
-    const ptr: *fn () void = @ptrCast(page_buffer.ptr);
-    ptr();
+    const execute_fn: *fn () void = @ptrCast(page_buffer.ptr);
+    execute_fn();
 }
