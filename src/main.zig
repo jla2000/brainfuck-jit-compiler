@@ -4,7 +4,7 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const code = try generate_bytecode(allocator, ".,");
+    const code = try generate_bytecode(allocator, "++[.-]");
     defer code.deinit();
 
     try execute_bytecode(code.items);
@@ -20,6 +20,8 @@ fn read_handler(tape_ptr: *u8) callconv(.C) void {
 
 fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !std.ArrayList(u8) {
     var code = std.ArrayList(u8).init(allocator);
+    var loop_start = std.ArrayList(usize).init(allocator);
+    var loop_end = std.ArrayList(usize).init(allocator);
 
     const amount = 1;
 
@@ -59,11 +61,36 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                 0x5E, // pop rsi
                 0x5F, // pop rdi
             }),
+            '[' => {
+                try loop_start.append(code.items.len);
+                try code.appendSlice(&.{
+                    0x80, 0x3F, 0x00, // cmp byte ptr [rdi], 0
+                    0x74, 0x00, // je <Address>
+                });
+            },
+            ']' => {
+                try code.appendSlice(&.{
+                    0x80, 0x3F, 0x00, // cmp byte ptr [rdi], 0
+                    0x75, 0x00, // jne <Address>
+                });
+                try loop_end.append(code.items.len);
+            },
             else => {},
         }
     }
 
     try code.append(0xC3); // ret
+
+    std.debug.assert(loop_start.items.len == loop_end.items.len);
+
+    // Fix jump addresses
+    for (loop_start.items, loop_end.items) |start_index, end_index| {
+        const rel_end_address: u8 = @truncate(end_index -% start_index);
+        code.items[start_index + 4] = rel_end_address;
+
+        const rel_start_address: u8 = @truncate(start_index -% end_index);
+        code.items[end_index - 1] = rel_start_address;
+    }
 
     return code;
 }
