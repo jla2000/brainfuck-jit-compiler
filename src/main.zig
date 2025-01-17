@@ -4,18 +4,21 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const code = try generate_bytecode(allocator, "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.");
+    const code = try generate_bytecode(allocator, ",[.,]");
     defer code.deinit();
 
     try execute_bytecode(code.items);
 }
 
+const stdout = std.io.getStdOut().writer();
+const stdin = std.io.getStdIn().reader();
+
 fn write_handler(tape_ptr: *u8) callconv(.C) void {
-    std.debug.print("{c}", .{tape_ptr.*});
+    stdout.writeByte(tape_ptr.*) catch unreachable;
 }
 
 fn read_handler(tape_ptr: *u8) callconv(.C) void {
-    std.debug.print("Read called with ptr={}\n", .{tape_ptr});
+    tape_ptr.* = stdin.readByte() catch unreachable;
 }
 
 fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !std.ArrayList(u8) {
