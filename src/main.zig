@@ -4,14 +4,14 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const code = try generate_bytecode(allocator, "++[.-]");
+    const code = try generate_bytecode(allocator, "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.");
     defer code.deinit();
 
     try execute_bytecode(code.items);
 }
 
 fn write_handler(tape_ptr: *u8) callconv(.C) void {
-    std.debug.print("Write called with ptr={}\n", .{tape_ptr});
+    std.debug.print("{c}", .{tape_ptr.*});
 }
 
 fn read_handler(tape_ptr: *u8) callconv(.C) void {
