@@ -23,6 +23,10 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
 
     const amount = 1;
 
+    // rdi -> tape pointer
+    // rsi -> write function address
+    // rdx -> read function address
+
     for (instructions) |instruction| {
         switch (instruction) {
             '+' => try code.appendSlice(&.{
