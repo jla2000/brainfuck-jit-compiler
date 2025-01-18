@@ -99,15 +99,19 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
 
     std.debug.assert(loop_start.items.len == loop_end.items.len);
 
-    for (loop_start.items, loop_end.items) |start_index, end_index| {
-        const loop_start_jump_index = start_index + 3;
-        const loop_end_jump_index = end_index + 3;
+    for (loop_start.items, loop_end.items) |loop_start_index, loop_end_index| {
+        const JUMP_INSTRUCTION_SIZE = 6;
+        const JUMP_ADDRESS_OFFSET = 2;
+        const LOOP_JUMP_OFFSET = 3;
 
-        const relative_end_offset: u32 = @truncate(end_index - loop_start_jump_index - 6);
-        write_u32(code.items, loop_start_jump_index + 2, relative_end_offset);
+        const loop_start_jump_index = loop_start_index + LOOP_JUMP_OFFSET;
+        const loop_end_jump_index = loop_end_index + LOOP_JUMP_OFFSET;
 
-        const relative_start_offset: u32 = @truncate(start_index -% loop_end_jump_index -% 6);
-        write_u32(code.items, loop_end_jump_index + 2, relative_start_offset);
+        const loop_end_relative: u32 = @truncate(loop_end_index - loop_start_jump_index - JUMP_INSTRUCTION_SIZE);
+        const loop_start_relative: u32 = @truncate(loop_start_index -% loop_end_jump_index - JUMP_INSTRUCTION_SIZE);
+
+        write_u32(code.items, loop_start_jump_index + JUMP_ADDRESS_OFFSET, loop_end_relative);
+        write_u32(code.items, loop_end_jump_index + JUMP_ADDRESS_OFFSET, loop_start_relative);
     }
 
     return code;
