@@ -101,17 +101,19 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
 
     for (loop_start.items, loop_end.items) |loop_start_index, loop_end_index| {
         const JUMP_INSTRUCTION_SIZE = 6;
+        const CMP_INSTRUCTION_SIZE = 3;
         const JUMP_ADDRESS_OFFSET = 2;
-        const LOOP_JUMP_OFFSET = 3;
 
-        const loop_start_jump_index = loop_start_index + LOOP_JUMP_OFFSET;
-        const loop_end_jump_index = loop_end_index + LOOP_JUMP_OFFSET;
+        const loop_start_jump_index = loop_start_index + CMP_INSTRUCTION_SIZE;
+        const loop_end_jump_index = loop_end_index + CMP_INSTRUCTION_SIZE;
 
-        const loop_end_relative: u32 = @truncate(loop_end_index - loop_start_jump_index - JUMP_INSTRUCTION_SIZE);
-        const loop_start_relative: u32 = @truncate(loop_start_index -% loop_end_jump_index - JUMP_INSTRUCTION_SIZE);
+        const index_after_loop = loop_end_index + CMP_INSTRUCTION_SIZE + JUMP_INSTRUCTION_SIZE;
 
-        write_u32(code.items, loop_start_jump_index + JUMP_ADDRESS_OFFSET, loop_end_relative);
-        write_u32(code.items, loop_end_jump_index + JUMP_ADDRESS_OFFSET, loop_start_relative);
+        const after_loop_relative: u32 = @truncate(index_after_loop - loop_start_jump_index - JUMP_INSTRUCTION_SIZE);
+        const before_loop_relative: u32 = @truncate(loop_start_index -% loop_end_jump_index - JUMP_INSTRUCTION_SIZE);
+
+        write_u32(code.items, loop_start_jump_index + JUMP_ADDRESS_OFFSET, after_loop_relative);
+        write_u32(code.items, loop_end_jump_index + JUMP_ADDRESS_OFFSET, before_loop_relative);
     }
 
     return code;
