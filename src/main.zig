@@ -4,10 +4,23 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const code = try generate_bytecode(allocator, ">++++++++[<+++++++++>-]<.>++++[<+++++++>-]<+.+++++++..+++.>>++++++[<+++++++>-]<++.------------.>++++++[<+++++++++>-]<+.<.+++.------.--------.>>>++++[<++++++++>- ]<+.");
-    defer code.deinit();
+    const filename = std.mem.span(std.os.argv[1]);
+    const program_file = try std.fs.cwd().openFile(filename, .{});
+    defer program_file.close();
 
-    try execute_bytecode(code.items);
+    const program = try program_file.readToEndAlloc(allocator, 0xFFFF);
+    const bytecode = try generate_bytecode(allocator, program);
+    defer bytecode.deinit();
+
+    const suffix = ".bin";
+    const bytecode_filename = try allocator.alloc(u8, filename.len + suffix.len);
+    defer allocator.free(bytecode_filename);
+
+    @memcpy(bytecode_filename[0..filename.len], filename);
+    @memcpy(bytecode_filename[filename.len..], suffix);
+
+    try save_bytecode(bytecode_filename, bytecode.items);
+    try execute_bytecode(bytecode.items);
 }
 
 const stdout = std.io.getStdOut().writer();
@@ -87,10 +100,10 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
     std.debug.assert(loop_start.items.len == loop_end.items.len);
 
     for (loop_start.items, loop_end.items) |start_index, end_index| {
-        const relative_end_offset: u32 = @truncate(end_index -% start_index);
+        const relative_end_offset: u32 = @truncate((end_index - 9) - start_index);
         write_u32(code.items, start_index + 5, relative_end_offset);
 
-        const relative_start_offset: u32 = @truncate(start_index -% end_index);
+        const relative_start_offset: u32 = @truncate(start_index -% (end_index - 9));
         write_u32(code.items, end_index - 4, relative_start_offset);
     }
 
@@ -122,4 +135,11 @@ fn execute_bytecode(code: []u8) !void {
     ) callconv(.C) void = @ptrCast(page_buffer.ptr);
 
     execute_code(@ptrCast(&tape), &write_handler, &read_handler);
+}
+
+fn save_bytecode(filename: []u8, code: []u8) !void {
+    const file = try std.fs.cwd().createFile(filename, .{});
+    defer file.close();
+
+    _ = try file.write(code);
 }
