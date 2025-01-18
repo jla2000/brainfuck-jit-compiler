@@ -4,7 +4,7 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    const code = try generate_bytecode(allocator, ",[.,]");
+    const code = try generate_bytecode(allocator, ">++++++++[<+++++++++>-]<.>++++[<+++++++>-]<+.+++++++..+++.>>++++++[<+++++++>-]<++.------------.>++++++[<+++++++++>-]<+.<.+++.------.--------.>>>++++[<++++++++>- ]<+.");
     defer code.deinit();
 
     try execute_bytecode(code.items);
@@ -86,23 +86,22 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
 
     std.debug.assert(loop_start.items.len == loop_end.items.len);
 
-    // Fix jump addresses
     for (loop_start.items, loop_end.items) |start_index, end_index| {
-        const rel_end_address: u32 = @truncate(end_index -% start_index);
-        write_jump_address(code.items, start_index + 5, rel_end_address);
+        const relative_end_offset: u32 = @truncate(end_index -% start_index);
+        write_u32(code.items, start_index + 5, relative_end_offset);
 
-        const rel_start_address: u32 = @truncate(start_index -% end_index);
-        write_jump_address(code.items, end_index - 4, rel_start_address);
+        const relative_start_offset: u32 = @truncate(start_index -% end_index);
+        write_u32(code.items, end_index - 4, relative_start_offset);
     }
 
     return code;
 }
 
-fn write_jump_address(code: []u8, location: usize, value: u32) void {
-    code[location + 3] = @truncate(value >> 24);
-    code[location + 2] = @truncate(value >> 16);
-    code[location + 1] = @truncate(value >> 8);
-    code[location + 0] = @truncate(value);
+fn write_u32(code: []u8, offset: usize, value: u32) void {
+    code[offset + 3] = @truncate(value >> 24);
+    code[offset + 2] = @truncate(value >> 16);
+    code[offset + 1] = @truncate(value >> 8);
+    code[offset + 0] = @truncate(value);
 }
 
 fn execute_bytecode(code: []u8) !void {
