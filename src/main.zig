@@ -79,7 +79,8 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                 });
             },
             else => {
-                if (index + 1 < instructions.len and instructions[index + 1] == instruction) {
+                const next_index = index + 1;
+                if (next_index < instructions.len and instructions[next_index] == instruction) {
                     amount += 1;
                     continue;
                 }
