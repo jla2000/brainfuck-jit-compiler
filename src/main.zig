@@ -34,31 +34,18 @@ fn read_handler(tape_ptr: *u8) callconv(.C) void {
     tape_ptr.* = stdin.readByte() catch unreachable;
 }
 
+// rdi -> tape pointer
+// rsi -> write function address
+// rdx -> read function address
 fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !std.ArrayList(u8) {
     var code = std.ArrayList(u8).init(allocator);
     var loop_start = std.ArrayList(usize).init(allocator);
     var loop_end = std.ArrayList(usize).init(allocator);
 
-    const amount = 1;
+    var amount: u8 = 1;
 
-    // rdi -> tape pointer
-    // rsi -> write function address
-    // rdx -> read function address
-
-    for (instructions) |instruction| {
+    for (instructions, 0..) |instruction, index| {
         switch (instruction) {
-            '+' => try code.appendSlice(&.{
-                0x80, 0x07, amount, // add byte ptr [rdi], amount
-            }),
-            '-' => try code.appendSlice(&.{
-                0x80, 0x2F, amount, // sub byte ptr [rdi], amount
-            }),
-            '>' => try code.appendSlice(&.{
-                0x48, 0x83, 0xC7, amount, // add rdi, amount
-            }),
-            '<' => try code.appendSlice(&.{
-                0x48, 0x83, 0xEF, amount, // sub rdi, amount
-            }),
             '.' => try code.appendSlice(&.{
                 0x57, // push rdi
                 0x56, // push rsi
@@ -91,7 +78,30 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                     0x0F, 0x85, 0x00, 0x00, 0x00, 0x00, // jnz rel32
                 });
             },
-            else => {},
+            else => {
+                if (index + 1 < instructions.len and instructions[index + 1] == instruction) {
+                    amount += 1;
+                    continue;
+                }
+
+                switch (instruction) {
+                    '+' => try code.appendSlice(&.{
+                        0x80, 0x07, amount, // add byte ptr [rdi], amount
+                    }),
+                    '-' => try code.appendSlice(&.{
+                        0x80, 0x2F, amount, // sub byte ptr [rdi], amount
+                    }),
+                    '>' => try code.appendSlice(&.{
+                        0x48, 0x83, 0xC7, amount, // add rdi, amount
+                    }),
+                    '<' => try code.appendSlice(&.{
+                        0x48, 0x83, 0xEF, amount, // sub rdi, amount
+                    }),
+                    else => {},
+                }
+
+                amount = 1;
+            },
         }
     }
 
