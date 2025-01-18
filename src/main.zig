@@ -68,13 +68,13 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                 try loop_start.append(code.items.len);
                 try code.appendSlice(&.{
                     0x80, 0x3F, 0x00, // cmp byte ptr [rdi], 0
-                    0x74, 0x00, // je <Address>
+                    0x0F, 0x84, 0x00, 0x00, 0x00, 0x00, // jz rel32
                 });
             },
             ']' => {
                 try code.appendSlice(&.{
                     0x80, 0x3F, 0x00, // cmp byte ptr [rdi], 0
-                    0x75, 0x00, // jne <Address>
+                    0x0F, 0x85, 0x00, 0x00, 0x00, 0x00, // jnz rel32
                 });
                 try loop_end.append(code.items.len);
             },
@@ -88,14 +88,21 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
 
     // Fix jump addresses
     for (loop_start.items, loop_end.items) |start_index, end_index| {
-        const rel_end_address: u8 = @truncate(end_index -% start_index);
-        code.items[start_index + 4] = rel_end_address;
+        const rel_end_address: u32 = @truncate(end_index -% start_index);
+        write_jump_address(code.items, start_index + 5, rel_end_address);
 
-        const rel_start_address: u8 = @truncate(start_index -% end_index);
-        code.items[end_index - 1] = rel_start_address;
+        const rel_start_address: u32 = @truncate(start_index -% end_index);
+        write_jump_address(code.items, end_index - 4, rel_start_address);
     }
 
     return code;
+}
+
+fn write_jump_address(code: []u8, location: usize, value: u32) void {
+    code[location + 3] = @truncate(value >> 24);
+    code[location + 2] = @truncate(value >> 16);
+    code[location + 1] = @truncate(value >> 8);
+    code[location + 0] = @truncate(value);
 }
 
 fn execute_bytecode(code: []u8) !void {
