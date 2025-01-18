@@ -85,11 +85,11 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                 });
             },
             ']' => {
+                try loop_end.append(code.items.len);
                 try code.appendSlice(&.{
                     0x80, 0x3F, 0x00, // cmp byte ptr [rdi], 0
                     0x0F, 0x85, 0x00, 0x00, 0x00, 0x00, // jnz rel32
                 });
-                try loop_end.append(code.items.len);
             },
             else => {},
         }
@@ -100,11 +100,14 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
     std.debug.assert(loop_start.items.len == loop_end.items.len);
 
     for (loop_start.items, loop_end.items) |start_index, end_index| {
-        const relative_end_offset: u32 = @truncate((end_index - 9) - start_index);
-        write_u32(code.items, start_index + 5, relative_end_offset);
+        const loop_start_jump_index = start_index + 3;
+        const loop_end_jump_index = end_index + 3;
 
-        const relative_start_offset: u32 = @truncate(start_index -% (end_index - 9));
-        write_u32(code.items, end_index - 4, relative_start_offset);
+        const relative_end_offset: u32 = @truncate(end_index - loop_start_jump_index - 6);
+        write_u32(code.items, loop_start_jump_index + 2, relative_end_offset);
+
+        const relative_start_offset: u32 = @truncate(start_index -% loop_end_jump_index -% 6);
+        write_u32(code.items, loop_end_jump_index + 2, relative_start_offset);
     }
 
     return code;
