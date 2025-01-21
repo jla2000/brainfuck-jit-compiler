@@ -109,23 +109,37 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
     std.debug.assert(loop_start.items.len == loop_end.items.len);
 
     for (loop_start.items, loop_end.items) |loop_start_index, loop_end_index| {
-        const JUMP_INSTRUCTION_SIZE = 6;
-        const CMP_INSTRUCTION_SIZE = 3;
-        const JUMP_ADDRESS_OFFSET = 2;
+        const loop_start_jump_address = loop_start_index + CMP_OPCODE_SIZE;
+        const loop_end_jump_address = loop_end_index + CMP_OPCODE_SIZE;
 
-        const loop_start_jump_index = loop_start_index + CMP_INSTRUCTION_SIZE;
-        const loop_end_jump_index = loop_end_index + CMP_INSTRUCTION_SIZE;
+        const after_loop_address = loop_end_index + CMP_OPCODE_SIZE + JUMP_OPCODE_SIZE;
+        const loop_body_address = loop_start_index + JUMP_OPCODE_SIZE + CMP_OPCODE_SIZE;
 
-        const index_after_loop = loop_end_index + CMP_INSTRUCTION_SIZE + JUMP_INSTRUCTION_SIZE;
-
-        const after_loop_relative: u32 = @truncate(index_after_loop - loop_start_jump_index - JUMP_INSTRUCTION_SIZE);
-        const before_loop_relative: u32 = @truncate(loop_start_index -% loop_end_jump_index - JUMP_INSTRUCTION_SIZE);
-
-        write_u32(code.items, loop_start_jump_index + JUMP_ADDRESS_OFFSET, after_loop_relative);
-        write_u32(code.items, loop_end_jump_index + JUMP_ADDRESS_OFFSET, before_loop_relative);
+        write_jump_address(code.items, loop_start_jump_address, after_loop_address);
+        write_jump_address(code.items, loop_end_jump_address, loop_body_address);
     }
 
     return code;
+}
+
+const CMP_OPCODE_SIZE = 3;
+const JUMP_OPCODE_SIZE = 6;
+const JUMP_OPERAND_OFFSET = 2;
+
+fn calculate_relative_jump_offset(
+    jump_address: usize,
+    target_address: usize,
+) u32 {
+    return @truncate(target_address -% jump_address - JUMP_OPCODE_SIZE);
+}
+
+fn write_jump_address(
+    code: []u8,
+    jump_address: usize,
+    target_address: usize,
+) void {
+    const relative_offset = calculate_relative_jump_offset(jump_address, target_address);
+    write_u32(code, jump_address + JUMP_OPERAND_OFFSET, relative_offset);
 }
 
 fn write_u32(code: []u8, offset: usize, value: u32) void {
@@ -149,6 +163,7 @@ fn execute_bytecode(code: []u8) !void {
 
     std.debug.print("Code base address: {x}\n", .{&code_buffer[0]});
     std.debug.print("Tape base address: {x}\n", .{&tape_buffer[0]});
+    std.debug.print("Tape end address:  {x}\n", .{&tape_buffer[tape_buffer.len - 1]});
 
     const execute_code: *const fn (
         tape_ptr: *const u8,
