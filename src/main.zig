@@ -4,22 +4,20 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
+    if (std.os.argv.len != 2) {
+        std.debug.print("Usage: ./brainfuck-jit-compiler <FILENAME>\n", .{});
+        return;
+    }
+
     const filename = std.mem.span(std.os.argv[1]);
     const program_file = try std.fs.cwd().openFile(filename, .{});
     defer program_file.close();
-
     const program = try program_file.readToEndAlloc(allocator, 0xFFFF);
+
     const bytecode = try generate_bytecode(allocator, program);
     defer bytecode.deinit();
 
-    const suffix = ".bin";
-    const bytecode_filename = try allocator.alloc(u8, filename.len + suffix.len);
-    defer allocator.free(bytecode_filename);
-
-    @memcpy(bytecode_filename[0..filename.len], filename);
-    @memcpy(bytecode_filename[filename.len..], suffix);
-
-    try save_bytecode(bytecode_filename, bytecode.items);
+    try save_bytecode("debug.bin", bytecode.items);
     try execute_bytecode(bytecode.items);
 }
 
@@ -157,7 +155,7 @@ fn execute_bytecode(code: []u8) !void {
     execute_code(@ptrCast(&tape), &write_handler, &read_handler);
 }
 
-fn save_bytecode(filename: []u8, code: []u8) !void {
+fn save_bytecode(filename: []const u8, code: []u8) !void {
     const file = try std.fs.cwd().createFile(filename, .{});
     defer file.close();
 
