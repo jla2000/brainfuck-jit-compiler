@@ -136,23 +136,27 @@ fn write_u32(code: []u8, offset: usize, value: u32) void {
 }
 
 fn execute_bytecode(code: []u8) !void {
-    const protection = std.posix.PROT.WRITE | std.posix.PROT.READ | std.posix.PROT.EXEC;
-    const flags = .{ .ANONYMOUS = true, .TYPE = .PRIVATE };
+    const tape_size = 30000;
 
-    const page_buffer = try std.posix.mmap(null, code.len, protection, flags, -1, 0);
-    defer std.posix.munmap(page_buffer);
+    const tape_buffer = try std.posix.mmap(null, tape_size, std.posix.PROT.READ | std.posix.PROT.WRITE, .{ .ANONYMOUS = true, .TYPE = .PRIVATE }, -1, 0);
+    const code_buffer = try std.posix.mmap(null, code.len, std.posix.PROT.READ | std.posix.PROT.WRITE | std.posix.PROT.EXEC, .{ .ANONYMOUS = true, .TYPE = .PRIVATE }, -1, 0);
 
-    @memcpy(page_buffer, code);
+    defer std.posix.munmap(tape_buffer);
+    defer std.posix.munmap(code_buffer);
 
-    var tape = std.mem.zeroes([30000]u8);
+    @memset(tape_buffer, 0);
+    @memcpy(code_buffer[0..code.len], code);
+
+    std.debug.print("Code base address: {x}\n", .{&code_buffer[0]});
+    std.debug.print("Tape base address: {x}\n", .{&tape_buffer[0]});
 
     const execute_code: *const fn (
         tape_ptr: *const u8,
         write_fn: *const fn (*u8) callconv(.C) void,
         read_fn: *const fn (*u8) callconv(.C) void,
-    ) callconv(.C) void = @ptrCast(page_buffer.ptr);
+    ) callconv(.C) void = @ptrCast(code_buffer.ptr);
 
-    execute_code(@ptrCast(&tape), &write_handler, &read_handler);
+    execute_code(&tape_buffer[0], &write_handler, &read_handler);
 }
 
 fn save_bytecode(filename: []const u8, code: []u8) !void {
