@@ -25,11 +25,11 @@ const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
 fn write_handler(tape_ptr: *u8) callconv(.C) void {
-    stdout.writeByte(tape_ptr.*) catch unreachable;
+    stdout.writeByte(tape_ptr.*) catch {};
 }
 
 fn read_handler(tape_ptr: *u8) callconv(.C) void {
-    tape_ptr.* = stdin.readByte() catch unreachable;
+    tape_ptr.* = stdin.readByte() catch 0;
 }
 
 // rdi -> tape pointer
