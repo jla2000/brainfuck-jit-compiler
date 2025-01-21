@@ -32,13 +32,18 @@ fn read_handler(tape_ptr: *u8) callconv(.C) void {
     tape_ptr.* = stdin.readByte() catch 0;
 }
 
+const LoopElement = struct {
+    jump_address: usize,
+    after_address: usize,
+};
+
 // rdi -> tape pointer
 // rsi -> write function address
 // rdx -> read function address
 fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !std.ArrayList(u8) {
     var code = std.ArrayList(u8).init(allocator);
-    var loop_start = std.ArrayList(usize).init(allocator);
-    var loop_end = std.ArrayList(usize).init(allocator);
+    var loop_start = std.ArrayList(LoopElement).init(allocator);
+    var loop_end = std.ArrayList(LoopElement).init(allocator);
 
     var amount: u8 = 1;
 
@@ -63,17 +68,31 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                 0x5F, // pop rdi
             }),
             '[' => {
-                try loop_start.append(code.items.len);
                 try code.appendSlice(&.{
                     0x80, 0x3F, 0x00, // cmp byte ptr [rdi], 0
+                });
+                const jump = code.items.len;
+                try code.appendSlice(&.{
                     0x0F, 0x84, 0x00, 0x00, 0x00, 0x00, // jz rel32
+                });
+                const after = code.items.len;
+                try loop_start.append(LoopElement{
+                    .jump_address = jump,
+                    .after_address = after,
                 });
             },
             ']' => {
-                try loop_end.append(code.items.len);
                 try code.appendSlice(&.{
                     0x80, 0x3F, 0x00, // cmp byte ptr [rdi], 0
+                });
+                const jump = code.items.len;
+                try code.appendSlice(&.{
                     0x0F, 0x85, 0x00, 0x00, 0x00, 0x00, // jnz rel32
+                });
+                const after = code.items.len;
+                try loop_end.append(LoopElement{
+                    .jump_address = jump,
+                    .after_address = after,
                 });
             },
             else => {
@@ -108,28 +127,19 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
 
     std.debug.assert(loop_start.items.len == loop_end.items.len);
 
-    for (loop_start.items, loop_end.items) |loop_start_index, loop_end_index| {
-        const loop_start_jump_address = loop_start_index + CMP_OPCODE_SIZE;
-        const loop_end_jump_address = loop_end_index + CMP_OPCODE_SIZE;
-
-        const after_loop_address = loop_end_index + CMP_OPCODE_SIZE + JUMP_OPCODE_SIZE;
-        const loop_body_address = loop_start_index + JUMP_OPCODE_SIZE + CMP_OPCODE_SIZE;
-
-        write_jump_address(code.items, loop_start_jump_address, after_loop_address);
-        write_jump_address(code.items, loop_end_jump_address, loop_body_address);
+    for (loop_start.items, loop_end.items) |loop_start_element, loop_end_element| {
+        write_jump_address(code.items, loop_start_element.jump_address, loop_end_element.after_address);
+        write_jump_address(code.items, loop_end_element.jump_address, loop_start_element.after_address);
     }
 
     return code;
 }
 
-const CMP_OPCODE_SIZE = 3;
-const JUMP_OPCODE_SIZE = 6;
-const JUMP_OPERAND_OFFSET = 2;
-
 fn calculate_relative_jump_offset(
     jump_address: usize,
     target_address: usize,
 ) u32 {
+    const JUMP_OPCODE_SIZE = 6;
     return @truncate(target_address -% jump_address - JUMP_OPCODE_SIZE);
 }
 
@@ -138,6 +148,7 @@ fn write_jump_address(
     jump_address: usize,
     target_address: usize,
 ) void {
+    const JUMP_OPERAND_OFFSET = 2;
     const relative_offset = calculate_relative_jump_offset(jump_address, target_address);
     write_u32(code, jump_address + JUMP_OPERAND_OFFSET, relative_offset);
 }
