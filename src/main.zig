@@ -34,7 +34,7 @@ fn read_handler(tape_ptr: *u8) callconv(.C) void {
 
 const LoopElement = struct {
     jump_address: usize,
-    after_address: usize,
+    next_address: usize,
 };
 
 // rdi -> tape pointer
@@ -78,7 +78,7 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                 const after = code.items.len;
                 try loop_start.append(LoopElement{
                     .jump_address = jump,
-                    .after_address = after,
+                    .next_address = after,
                 });
             },
             ']' => {
@@ -92,7 +92,7 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                 const after = code.items.len;
                 try loop_end.append(LoopElement{
                     .jump_address = jump,
-                    .after_address = after,
+                    .next_address = after,
                 });
             },
             else => {
@@ -128,8 +128,8 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
     std.debug.assert(loop_start.items.len == loop_end.items.len);
 
     for (loop_start.items, loop_end.items) |loop_start_element, loop_end_element| {
-        write_jump_address(code.items, loop_start_element.jump_address, loop_end_element.after_address);
-        write_jump_address(code.items, loop_end_element.jump_address, loop_start_element.after_address);
+        write_jump_address(code.items, loop_start_element.jump_address, loop_end_element.next_address);
+        write_jump_address(code.items, loop_end_element.jump_address, loop_start_element.next_address);
     }
 
     return code;
