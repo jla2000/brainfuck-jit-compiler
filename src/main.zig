@@ -24,12 +24,12 @@ pub fn main() !void {
 const stdout = std.io.getStdOut().writer();
 const stdin = std.io.getStdIn().reader();
 
-fn write_handler(tape_ptr: *u8) callconv(.C) void {
-    stdout.writeByte(tape_ptr.*) catch {};
+fn write_handler(data_ptr: *u8) callconv(.C) void {
+    stdout.writeByte(data_ptr.*) catch {};
 }
 
-fn read_handler(tape_ptr: *u8) callconv(.C) void {
-    tape_ptr.* = stdin.readByte() catch 0;
+fn read_handler(data_ptr: *u8) callconv(.C) void {
+    data_ptr.* = stdin.readByte() catch 0;
 }
 
 const LoopElement = struct {
@@ -37,7 +37,7 @@ const LoopElement = struct {
     next_address: usize,
 };
 
-// rdi -> tape pointer
+// rdi -> data pointer
 // rsi -> write function address
 // rdx -> read function address
 fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !std.ArrayList(u8) {
@@ -147,28 +147,27 @@ fn write_jump_offset(
 }
 
 fn execute_bytecode(code: []u8) !void {
-    const tape_size = 30000;
+    const data_size = 30000;
 
-    const tape_buffer = try std.posix.mmap(null, tape_size, std.posix.PROT.READ | std.posix.PROT.WRITE, .{ .ANONYMOUS = true, .TYPE = .PRIVATE }, -1, 0);
+    const data_buffer = try std.posix.mmap(null, data_size, std.posix.PROT.READ | std.posix.PROT.WRITE, .{ .ANONYMOUS = true, .TYPE = .PRIVATE }, -1, 0);
     const code_buffer = try std.posix.mmap(null, code.len, std.posix.PROT.READ | std.posix.PROT.WRITE | std.posix.PROT.EXEC, .{ .ANONYMOUS = true, .TYPE = .PRIVATE }, -1, 0);
 
-    defer std.posix.munmap(tape_buffer);
+    defer std.posix.munmap(data_buffer);
     defer std.posix.munmap(code_buffer);
 
-    @memset(tape_buffer, 0);
+    @memset(data_buffer, 0);
     @memcpy(code_buffer[0..code.len], code);
 
-    std.debug.print("Code base address: {x}\n", .{&code_buffer[0]});
-    std.debug.print("Tape base address: {x}\n", .{&tape_buffer[0]});
-    std.debug.print("Tape end address:  {x}\n", .{&tape_buffer[tape_buffer.len - 1]});
+    std.debug.print("Code : {x} - {x} -> {d} bytes\n", .{ &code_buffer[0], &code_buffer[code_buffer.len - 1], code_buffer.len });
+    std.debug.print("Data : {x} - {x} -> {d} bytes\n", .{ &data_buffer[0], &data_buffer[data_buffer.len - 1], data_buffer.len });
 
     const execute_code: *const fn (
-        tape_ptr: *const u8,
+        data_ptr: *const u8,
         write_fn: *const fn (*u8) callconv(.C) void,
         read_fn: *const fn (*u8) callconv(.C) void,
     ) callconv(.C) void = @ptrCast(code_buffer.ptr);
 
-    execute_code(&tape_buffer[0], &write_handler, &read_handler);
+    execute_code(&data_buffer[0], &write_handler, &read_handler);
 }
 
 fn save_bytecode(filename: []const u8, code: []u8) !void {
