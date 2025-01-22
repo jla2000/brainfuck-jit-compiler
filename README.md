@@ -1,3 +1,5 @@
 # brainfuck-jit-compiler
 
-A zero-dependency x84_64 brainfuck jit compiler, written in Zig.
+Compile any valid brainfuck program into native x86_64 machine code and directly execute it.
+
+![Mandelbrot Output](./screenshots/example.png)
