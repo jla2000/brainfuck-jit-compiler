@@ -37,13 +37,20 @@ const LoopElement = struct {
     next_address: usize,
 };
 
+const Loop = struct {
+    begin: LoopElement,
+    end: LoopElement,
+};
+
 // rdi -> data pointer
 // rsi -> write function address
 // rdx -> read function address
 fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !std.ArrayList(u8) {
+    std.debug.print("Compiling...\n", .{});
+
     var code = std.ArrayList(u8).init(allocator);
     var loop_start = std.ArrayList(LoopElement).init(allocator);
-    var loop_end = std.ArrayList(LoopElement).init(allocator);
+    var loops = std.ArrayList(Loop).init(allocator);
 
     var amount: u8 = 1;
 
@@ -75,10 +82,9 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                 try code.appendSlice(&.{
                     0x0F, 0x84, 0x00, 0x00, 0x00, 0x00, // jz rel32
                 });
-                const after = code.items.len;
                 try loop_start.append(LoopElement{
                     .jump_address = jump,
-                    .next_address = after,
+                    .next_address = code.items.len,
                 });
             },
             ']' => {
@@ -89,10 +95,12 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                 try code.appendSlice(&.{
                     0x0F, 0x85, 0x00, 0x00, 0x00, 0x00, // jnz rel32
                 });
-                const after = code.items.len;
-                try loop_end.append(LoopElement{
-                    .jump_address = jump,
-                    .next_address = after,
+                try loops.append(Loop{
+                    .begin = loop_start.pop(),
+                    .end = LoopElement{
+                        .jump_address = jump,
+                        .next_address = code.items.len,
+                    },
                 });
             },
             else => {
@@ -125,11 +133,9 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
 
     try code.append(0xC3); // ret
 
-    std.debug.assert(loop_start.items.len == loop_end.items.len);
-
-    for (loop_start.items, loop_end.items) |loop_start_element, loop_end_element| {
-        write_jump_offset(code.items, loop_start_element.jump_address, loop_end_element.next_address);
-        write_jump_offset(code.items, loop_end_element.jump_address, loop_start_element.next_address);
+    for (loops.items) |loop| {
+        write_jump_offset(code.items, loop.begin.jump_address, loop.end.next_address);
+        write_jump_offset(code.items, loop.end.jump_address, loop.begin.next_address);
     }
 
     return code;
@@ -158,8 +164,10 @@ fn execute_bytecode(code: []u8) !void {
     @memset(data_buffer, 0);
     @memcpy(code_buffer[0..code.len], code);
 
+    std.debug.print("Preparing memory...\n", .{});
     std.debug.print("Code : {x} - {x} -> {d} bytes\n", .{ &code_buffer[0], &code_buffer[code_buffer.len - 1], code_buffer.len });
     std.debug.print("Data : {x} - {x} -> {d} bytes\n", .{ &data_buffer[0], &data_buffer[data_buffer.len - 1], data_buffer.len });
+    std.debug.print("Executing bytecode...\n", .{});
 
     const execute_code: *const fn (
         data_ptr: *const u8,
