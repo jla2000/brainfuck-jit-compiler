@@ -17,7 +17,6 @@ pub fn main() !void {
     const bytecode = try generate_bytecode(allocator, program);
     defer bytecode.deinit();
 
-    try save_bytecode("debug.bin", bytecode.items);
     try execute_bytecode(bytecode.items);
 }
 
@@ -46,8 +45,6 @@ const Loop = struct {
 // rsi -> write function address
 // rdx -> read function address
 fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !std.ArrayList(u8) {
-    std.debug.print("Compiling...\n", .{});
-
     var code = std.ArrayList(u8).init(allocator);
     var loop_start = std.ArrayList(LoopElement).init(allocator);
     var loops = std.ArrayList(Loop).init(allocator);
@@ -164,11 +161,6 @@ fn execute_bytecode(code: []u8) !void {
     @memset(data_buffer, 0);
     @memcpy(code_buffer[0..code.len], code);
 
-    std.debug.print("Preparing memory...\n", .{});
-    std.debug.print("Code : {x} - {x} -> {d} bytes\n", .{ &code_buffer[0], &code_buffer[code_buffer.len - 1], code_buffer.len });
-    std.debug.print("Data : {x} - {x} -> {d} bytes\n", .{ &data_buffer[0], &data_buffer[data_buffer.len - 1], data_buffer.len });
-    std.debug.print("Executing bytecode...\n", .{});
-
     const execute_code: *const fn (
         data_ptr: *const u8,
         write_fn: *const fn (*u8) callconv(.C) void,
@@ -176,11 +168,4 @@ fn execute_bytecode(code: []u8) !void {
     ) callconv(.C) void = @ptrCast(code_buffer.ptr);
 
     execute_code(&data_buffer[0], &write_handler, &read_handler);
-}
-
-fn save_bytecode(filename: []const u8, code: []u8) !void {
-    const file = try std.fs.cwd().createFile(filename, .{});
-    defer file.close();
-
-    _ = try file.write(code);
 }
