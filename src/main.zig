@@ -14,6 +14,7 @@ pub fn main() !void {
     defer program_file.close();
     const program = try program_file.readToEndAlloc(allocator, 0xFFFF);
 
+    optimize_code(program);
     const bytecode = try generate_bytecode(allocator, program);
     defer bytecode.deinit();
 
@@ -40,6 +41,14 @@ const Loop = struct {
     begin: LoopElement,
     end: LoopElement,
 };
+
+fn optimize_code(code: []u8) void {
+    while (std.mem.indexOf(u8, code, "[-]")) |index| {
+        code[index + 0] = 'z';
+        code[index + 1] = 'z';
+        code[index + 2] = 'z';
+    }
+}
 
 // rdi -> data pointer
 // rsi -> write function address
@@ -119,6 +128,9 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                     }),
                     '<' => try code.appendSlice(&.{
                         0x48, 0x83, 0xEF, amount, // sub rdi, amount
+                    }),
+                    'z' => try code.appendSlice(&.{
+                        0xC6, 0x07, 0x00, // mov byte ptr [rdi], 0
                     }),
                     else => {},
                 }
