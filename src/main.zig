@@ -42,11 +42,12 @@ const Loop = struct {
     end: LoopElement,
 };
 
+const SET_TO_ZERO = 0x07;
 fn optimize_code(code: []u8) void {
     while (std.mem.indexOf(u8, code, "[-]")) |index| {
-        code[index + 0] = 'z';
-        code[index + 1] = 'z';
-        code[index + 2] = 'z';
+        code[index + 0] = SET_TO_ZERO;
+        code[index + 1] = SET_TO_ZERO;
+        code[index + 2] = SET_TO_ZERO;
     }
 }
 
@@ -129,7 +130,7 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                     '<' => try code.appendSlice(&.{
                         0x48, 0x83, 0xEF, amount, // sub rdi, amount
                     }),
-                    'z' => try code.appendSlice(&.{
+                    SET_TO_ZERO => try code.appendSlice(&.{
                         0xC6, 0x07, 0x00, // mov byte ptr [rdi], 0
                     }),
                     else => {},
