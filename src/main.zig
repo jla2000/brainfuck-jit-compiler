@@ -128,36 +128,22 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
     std.debug.assert(loop_start.items.len == loop_end.items.len);
 
     for (loop_start.items, loop_end.items) |loop_start_element, loop_end_element| {
-        write_jump_address(code.items, loop_start_element.jump_address, loop_end_element.next_address);
-        write_jump_address(code.items, loop_end_element.jump_address, loop_start_element.next_address);
+        write_jump_offset(code.items, loop_start_element.jump_address, loop_end_element.next_address);
+        write_jump_offset(code.items, loop_end_element.jump_address, loop_start_element.next_address);
     }
 
     return code;
 }
 
-fn calculate_relative_jump_offset(
-    jump_address: usize,
-    target_address: usize,
-) u32 {
-    const JUMP_OPCODE_SIZE = 6;
-    return @truncate(target_address -% jump_address - JUMP_OPCODE_SIZE);
-}
-
-fn write_jump_address(
+fn write_jump_offset(
     code: []u8,
     jump_address: usize,
     target_address: usize,
 ) void {
+    const JUMP_OPCODE_SIZE = 6;
     const JUMP_OPERAND_OFFSET = 2;
-    const relative_offset = calculate_relative_jump_offset(jump_address, target_address);
-    write_u32(code, jump_address + JUMP_OPERAND_OFFSET, relative_offset);
-}
-
-fn write_u32(code: []u8, offset: usize, value: u32) void {
-    code[offset + 3] = @truncate(value >> 24);
-    code[offset + 2] = @truncate(value >> 16);
-    code[offset + 1] = @truncate(value >> 8);
-    code[offset + 0] = @truncate(value);
+    const relative_offset: u32 = @truncate(target_address -% jump_address - JUMP_OPCODE_SIZE);
+    std.mem.writeInt(u32, @ptrCast(&code[jump_address + JUMP_OPERAND_OFFSET]), relative_offset, .little);
 }
 
 fn execute_bytecode(code: []u8) !void {
