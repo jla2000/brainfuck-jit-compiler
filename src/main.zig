@@ -103,7 +103,7 @@ fn generate_bytecode(allocator: std.mem.Allocator, instructions: []const u8) !st
                     0x0F, 0x85, 0x00, 0x00, 0x00, 0x00, // jnz rel32
                 });
                 try loops.append(Loop{
-                    .begin = loop_start.pop(),
+                    .begin = loop_start.pop().?,
                     .end = LoopElement{
                         .jump_address = jump,
                         .next_address = code.items.len,
