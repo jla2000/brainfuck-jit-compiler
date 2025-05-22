@@ -10,9 +10,14 @@ pub fn main() !void {
     }
 
     const filename = std.mem.span(std.os.argv[1]);
-    const program_file = try std.fs.cwd().openFile(filename, .{});
-    defer program_file.close();
-    const program = try program_file.readToEndAlloc(allocator, 0xFFFF);
+
+    const file = try if (std.mem.eql(u8, filename, "-"))
+        std.io.getStdIn()
+    else
+        std.fs.cwd().openFile(filename, .{});
+
+    defer file.close();
+    const program = try file.readToEndAlloc(allocator, 0xFFFF);
 
     optimize_code(program);
     const bytecode = try generate_bytecode(allocator, program);
